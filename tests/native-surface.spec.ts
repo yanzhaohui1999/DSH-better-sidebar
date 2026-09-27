@@ -9,6 +9,7 @@ import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { act } from 'react-dom/test-utils'
 import { createNativeTabRecords, NativeTabBody, NativeTabTitle } from '../src/client/native/tab-adapter.tsx'
+import { createNativeTabMiddleClick } from '../src/client/native/tab-middle-click.ts'
 import { registerNativeSurface } from '../src/client/native/index.ts'
 import { createBetterSidebarService, type SidebarSurface } from '../src/client/service.ts'
 import { createSidebarStore, type SidebarTab } from '../src/client/state.ts'
@@ -473,6 +474,7 @@ describe('NativeTabTitle (the chip glyph)', () => {
         records,
         service,
         descriptorId,
+        middleClick: createNativeTabMiddleClick(),
         useTabInfo: () => info as never,
       }))
     })
@@ -552,6 +554,22 @@ describe('NativeTabTitle (the chip glyph)', () => {
     const { host, unmount } = renderTitle(records, service, nativeInfo('chip-3', 'ghost', 'Ghost'), 'ghost')
     expect(host.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(host.textContent).toBe('Ghost')
+    unmount()
+  })
+
+  it('stamps the ownership marker on a layout-neutral wrapper (display: contents)', () => {
+    const records = createNativeTabRecords()
+    const service = createBetterSidebarService(createSidebarStore())
+    records.ensure({ id: 'chip-4', kind: 'ghost', title: 'Ghost', params: undefined, scope })
+
+    const { host, unmount } = renderTitle(records, service, nativeInfo('chip-4', 'ghost', 'Ghost'), 'ghost')
+    // The marker is what the middle-click listener resolves identity from. It
+    // must sit on a wrapper that does NOT generate a box: the host's own title
+    // element is `display: contents`, so its children (glyph + title) have to
+    // stay direct children of the kit's flex tab box.
+    const marker = host.querySelector('[data-dsh-better-sidebar-native-tab="chip-4"]')
+    expect(marker, 'the chip must stamp its native tab id').not.toBeNull()
+    expect(marker!.getAttribute('style'), 'the wrapper must not generate a box').toContain('display: contents')
     unmount()
   })
 })

@@ -27,6 +27,8 @@ import type { SessionScope } from '../api.ts'
 import { RenderBoundary } from '../RenderBoundary.tsx'
 import { OrphanedTab } from '../OrphanedTab.tsx'
 import { referenceInChat } from '../reference-in-chat.ts'
+import type { NativeTabMiddleClick } from './tab-middle-click.ts'
+import { nativeTabMarker } from './tab-middle-click.ts'
 import type { BetterSidebarService } from '../service.ts'
 import type { SidebarStore, SidebarTab, TabType } from '../state.ts'
 import css from '../sidebar.module.css'
@@ -70,6 +72,18 @@ export interface NativeTabInfo {
       readonly revision: number
     }
     readonly signal: AbortSignal
+    /**
+     * The tab's own actions. The host hands these to the title seat as well as
+     * the body, and `close()` is the same call its × button makes
+     * (`navigator.closeIn(sessionId, tabId)`), so the plugin's middle-click
+     * close is session-exact without probing `closeIn`.
+     *
+     * Optional: a runtime without the field leaves the gesture unregistered
+     * rather than throwing.
+     */
+    readonly actions?: {
+      readonly close?: () => void
+    }
   }
 }
 
@@ -339,6 +353,13 @@ export interface NativeTitleInjected {
   readonly service: BetterSidebarService
   /** The descriptor id this title belongs to (one registration per descriptor). */
   readonly descriptorId: string
+  /**
+   * The middle-click controller the chip publishes its close to (see
+   * `tab-middle-click.ts`): the host's strip has no button-1 handling, so the
+   * plugin restores the gesture from the one element of a native tab it
+   * renders itself.
+   */
+  readonly middleClick: NativeTabMiddleClick
 }
 
 /**
@@ -354,9 +375,19 @@ export interface NativeTitleInjected {
  * every other tab shows its descriptor's icon. Both ride
  * `descriptor.icon`, so the workbench strip, the guide capsules and the chip
  * cannot drift apart.
+ *
+ * The chip is also where the plugin takes back the middle-click close the
+ * host's strip does not implement: it stamps its native tab id (the ownership
+ * marker the document-level press handler resolves identity from) and
+ * publishes its tab's own `actions.close()` to {@link
+ * NativeTitleInjected.middleClick} for as long as it is mounted.
+ *
+ * The marker rides a `display: contents` span because the host's own title
+ * element is `display: contents` too: the glyph and the title must stay direct
+ * children of the kit's tab box, so no wrapper may generate a box.
  */
 export function NativeTabTitle(props: NativeTitleInjected & NativeBodyFrameworkProps): ReactNode {
-  const { records, service, descriptorId, useTabInfo } = props
+  const { records, service, descriptorId, middleClick, useTabInfo } = props
   const nativeTab = useTabInfo().tab
   const version = useSyncExternalStore(
     listener => records.subscribe(listener),
@@ -367,6 +398,13 @@ export function NativeTabTitle(props: NativeTitleInjected & NativeBodyFrameworkP
   // `version` is read so a title/path/meta mutation re-renders the chip; the
   // icon itself is derived from the record, never stored.
   void version
+  // The host's own close for this tab, in this tab's session. Its absence (an
+  // older runtime) leaves the chip's gesture unregistered rather than throwing.
+  const close = nativeTab.actions?.close
+  useEffect(() => {
+    if (close === undefined) return undefined
+    return middleClick.register(nativeTab.id, close)
+  }, [middleClick, nativeTab.id, close])
   const descriptor = service.getTab(descriptorId) ?? service.getTab(record?.tab.type ?? nativeTab.kind)
   const path = record?.tab.path
   const icon = path !== undefined && descriptorId === EDITOR_KIND
@@ -375,14 +413,16 @@ export function NativeTabTitle(props: NativeTitleInjected & NativeBodyFrameworkP
   const glyph = icon ?? (typeof descriptor?.icon === 'function'
     ? descriptor.icon(CHIP_ICON_SIZE)
     : descriptor?.icon)
-  if (glyph === undefined || glyph === null) return title
-  return (
-    <>
-      {/* Decorative: the chip's accessible name stays the title. */}
-      <span className={css.chipIcon} aria-hidden="true">{glyph}</span>
-      {title}
-    </>
-  )
+  const content = glyph === undefined || glyph === null
+    ? title
+    : (
+        <>
+          {/* Decorative: the chip's accessible name stays the title. */}
+          <span className={css.chipIcon} aria-hidden="true">{glyph}</span>
+          {title}
+        </>
+      )
+  return createElement('span', { ...nativeTabMarker(nativeTab.id), style: { display: 'contents' } }, content)
 }
 
 /** The component pair one descriptor contributes to the native surface. */

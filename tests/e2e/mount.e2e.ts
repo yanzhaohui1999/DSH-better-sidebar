@@ -480,6 +480,24 @@ test('plugin mounts into the DSH shell and survives a built-in tab sweep', async
   await page.waitForTimeout(1_500)
   await assertNoCrash()
 
+  // Middle-click close over the native strip. DSH's own strip has no button-1
+  // handling at all (its tab element binds pointerdown for drag, click for
+  // activation, keydown for focus and contextmenu for the menu), so the plugin
+  // restores the gesture from the one element of a native tab it renders: the
+  // title chip stamps its tab id, publishes the tab's own close action, and a
+  // document-level capture listener settles the gesture. This asserts the
+  // whole chain against the real host: marked chip → listener → the host's
+  // store.
+  const ownedTab = pane.locator('[data-dockkit-tab]').filter({ hasText: SEEDED_FILE })
+  await expect(ownedTab, `the opened "${SEEDED_FILE}" tab must own one strip chip`).toHaveCount(1, { timeout: 10_000 })
+  await expect(
+    ownedTab.locator('[data-dsh-better-sidebar-native-tab]'),
+    'the plugin must stamp its tab id on the chip (the ownership marker)',
+  ).toHaveCount(1, { timeout: 10_000 })
+  await ownedTab.click({ button: 'middle' })
+  await expect(ownedTab, 'a middle click must close the tab in the host store').toHaveCount(0, { timeout: 10_000 })
+  await assertNoCrash()
+
   // The mermaid chunk (client-mermaid.js) only loads when a previewed markdown
   // file contains a mermaid fence. Open the seeded diagram file from the
   // explorer and require the full round-trip: chunk fetch + sanitized SVG
