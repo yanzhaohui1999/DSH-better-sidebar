@@ -805,7 +805,11 @@ interface BetterSidebarService {
    *  下一次渲染当渲染垃圾抹掉，宿主**真正**发起的新导航（新修订）仍按地址
    *  改写记录。文件树的重命名 / 删除调解会一并处理原生承载面上的页签（跟着
    *  改址 / 按既有的未保存确认关闭；枚举由承载面内部交回服务，不是公开方法），
-   *  消费插件不需要改任何代码。 */
+   *  消费插件不需要改任何代码。
+   *  **标题只在它本来就来自文件名时才跟着改名走**（v0.26.0+）：页签调解把**派生
+   *  自基名**的标题换成新基名，而 `openFile(scope, path, title)` 或 `openTab` 里
+   *  **作者自设的标题**（宿主的 agent-opens 推送就带一个）原样保留——名字是你标
+   *  的，就不该被一次文件改名换掉。 */
   updateTab(tabId: string, patch: { title?: string; path?: string; meta?: unknown }, sessionId?: string): void
   /** 激活一个已打开的 tab（tab 栏点击路径；触发 descriptor.onActivate；
    *  未知 id 严格 no-op）；scope（v0.12.0+）随回调传递，同 closeTab */

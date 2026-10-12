@@ -4,6 +4,9 @@
 
 ### Unreleased
 
+- 🏷 **改名只在标题本来就来自文件名时才跟着改**（[#915](https://github.com/omdsh-dev/DSH-better-sidebar/issues/915) 后续）：页签调解此前**无条件**把标题写成新的基名，于是**作者自设的标题**会被一次改名悄悄替换掉——宿主的 agent-opens 推送就带着模型自己给的名字（`use-host-feeds` → `openFile(scope, path, title)`），消费插件也可以自己标名字。现在只有标题**等于该页签路径的基名**（也就是打开时由文件名派生的那种）才跟着新名字走；目录改名本来就不动后代（后代基名没变），两处口径因此一致。原生承载面的 `SidebarSurface.pathTabs()` 随之交出每个记录的 `title`（`NativePathTab` 新增字段）。
+  - 🧪 测试：`tests/editor-unsaved-guard.spec.tsx` 新增 1 例（同一个文件的两个页签：派生标题跟着走、自设标题原样保留，底部工作台那一路一并断言）；`tests/native-surface.spec.ts` 的枚举断言带上 `title`。判别性实测：把判定换回无条件改写 → 该用例红。
+
 - 🛡 **三处静默数据问题**（[#898](https://github.com/omdsh-dev/DSH-better-sidebar/issues/898) / [#899](https://github.com/omdsh-dev/DSH-better-sidebar/issues/899) / [#900](https://github.com/omdsh-dev/DSH-better-sidebar/issues/900)）：① 编辑器草稿守卫的记账键从**裸 tab id** 改成 **`会话::tab id`**——原生右栏每个会话的 id 都从 `tab1` 重新计数、底部工作台对同一路径在各会话复用 `editor:<path>`，两套身份原先挤在同一个键上，**另一个会话打开编辑器就会把本会话的草稿记录一并删掉**（刷新时静默丢失）；② 面包屑折叠行（`a/b/c` 压成一行）的重命名此前提交的是**链头**目录、与预填名不一致——不改字直接回车等于把父目录改名，现在落到链尾；③ 无 BOM 的 16 位小端数据（低幅采样表 / 未压缩音频数据段这类）不再被判成 UTF-16 文本打开、保存后整份改写（奇数长度还会丢尾字节）：新的文本闸门要求 ≥90% 的单元是合法文本单元。同批还带了 dev 新增代码的一轮去重（内部导出 `runGitRaw` / `bottomTerminalKey` / `formatModelRoute` / `dirtyCountForSession` 收敛，仓内调用点同批改完）。（贡献者 PR [#901](https://github.com/omdsh-dev/DSH-better-sidebar/pull/901) @UNscientific-9）
   - 🧪 测试：`tests/editor-unsaved-guard.spec.tsx`（跨会话草稿：第二个会话挂同一个原生 id，既不能清掉、也不能确认掉第一个会话的草稿）、`tests/file-tree-compact-fold.spec.tsx`（折叠行重命名断言落到链尾：`/tmp/a/b/c` → `renamed`）、`tests/text-encoding.spec.ts`（uint16LE 采样表 / WAV `data` 段 / 奇数长度判二进制，真 UTF-16LE/BE 仍是文本）。
 
