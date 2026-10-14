@@ -54,6 +54,18 @@ export default defineConfig({
       // list is the only thing vitest reads. Left out, `pnpm test` collects
       // those stale copies and reports THEIR failures as ours.
       '**/.delta/**',
+      // Third hazard, and the same one wearing a disguise: pnpm's store keeps
+      // one symlink per project that has ever installed against it
+      // (`.pnpm-store/v11/projects/<hash>` → that checkout). Each LIVE symlink
+      // pointing back into this repo re-collects the whole suite through the
+      // store path, and `**/.worktrees/**` cannot catch it — the collected
+      // path is `.pnpm-store/.../tests/x.spec.ts` and never contains
+      // `.worktrees`. Each symlink left behind by a deleted checkout instead
+      // raises `Cannot find module` at collect time. Measured 2026-10-14 on a
+      // checkout with 6 live symlinks + 39 dead ones: 1315 collected spec
+      // paths where the repo has ~190 spec files (7× the suite), plus 39
+      // collection errors.
+      '**/.pnpm-store/**',
       '**/node_modules/**',
       '**/dist/**',
       '**/cypress/**',
